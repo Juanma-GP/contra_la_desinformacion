@@ -7,7 +7,7 @@ import requests, json, os, zipfile
 from io import BytesIO
 from ipywidgets import interact
 from plotly import graph_objects as go, express as px
-from sklearn.preprocessing import MinMaxScaler,PowerTransformer,QuantileTransformer
+from sklearn.preprocessing import QuantileTransformer
 
 
 """ Estos gráficos están basados en los datos de la universidad de
