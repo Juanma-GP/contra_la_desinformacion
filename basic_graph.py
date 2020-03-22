@@ -57,12 +57,13 @@ def get_population():
     df.columns = ['country_code_3','Latest_pop']
     return df
 
-def add_percentage_population(df):
+def add_percentage_population(df,mode):
     
     df_population = get_population()
-    df_aux = df.loc[:,df.columns[-6:-2]]
-    df_aux.columns = ["Latest"]+[str(name) for name in df_aux.columns[1:]]
+    if mode == 'Absolute': df_aux = df.loc[:,df.columns[-6:-2]]
+    else: df_aux = df.loc[:,df.columns[-7:-2]]
 
+    df_aux.columns = ["Latest"]+[str(name) for name in df_aux.columns[1:]]
     df_aux = df_aux.merge(df_population,on="country_code_3")
     df_aux['%']= df_aux.Latest*(10**2)/df_aux[df_population.columns[-1]]
 
@@ -95,7 +96,8 @@ def resize_data(df):
     df_population = get_population()
     df_aux=df.merge(df_population,on="country_code_3")
     for col in columns_to_change:
-        df_aux[col] = df_aux[col]*(10**2)/df_aux["Latest_pop"]
+        if type(col) != str:
+            df_aux[col] = df_aux[col]*(10**2)/df_aux["Latest_pop"]
     return df_aux
 
 def get_df(webpage_json,key='confirmed',continent='All',mode='Absolute'):
@@ -128,9 +130,11 @@ def get_df(webpage_json,key='confirmed',continent='All',mode='Absolute'):
     return df
 
 
-def plot_lines_covid(df,continente=None):
+def plot_lines_covid(df,mode,continente=None):
+
     columns_to_drop = ["country_code","continent","sub_region"]
-    if "Latest_pop" in df.columns: columns_to_drop.extend(["Latest_pop"])
+    #if "Latest_pop" in df.columns: 
+    #    columns_to_drop.extend(["Latest_pop"])
     
     fig = go.Figure()
     
@@ -140,25 +144,32 @@ def plot_lines_covid(df,continente=None):
     else: fig.update_layout(showlegend=False)
     
     for country in df.country:
-        fig.add_trace(go.Scatter(x=df.columns, 
-                                 y=df.loc[df.country==country,df.columns[:-2]].values[0],
+        if mode=='Relative':
+            text = [country+'<br>Total:'+str(int(float(value)*float(df.loc[df.country==country,["Latest_pop"]].values[0][0])//100)) \
+                    for value in df.loc[df.country==country,df.columns[:-3]].values[0]\
+                   ]
+        else: text= country    
+        fig.add_trace(go.Scatter(x=df.columns[:-3], 
+                                 y=df.loc[df.country==country,df.columns[:-3]].values[0],
                                  mode='lines',
                                  name=df.loc[df.country==country,["country_code_3"]].values[0][0],
-                                 hovertext = [country+' - '+str(date).split()[0] \
-                                              for date in df.columns[:-2]]))
+                                 hovertext = text
+                                )
+                     )
     
     fig.show()
 
 def plot_maps(df,mode):
-    
+
     if mode == "Absolute":
         color_column="%"
         title = "<b>Map with contagion rate, real percentage</b>"
         hover_columns = ["Latest"]
     else:
         color_column="Modified"
+        df["Latest"] = df["Latest"]*df["Latest_pop"]/100
         title = "<b>Map with data modified for appreciate the order of the countries by contagion rate</b>"
-        hover_columns = ["Latest","%"]
+        hover_columns = ["Latest"]
     
     fig = px.choropleth(df, locations="country_code_3",
                         color=color_column, # lifeExp is a column of gapminder
@@ -173,8 +184,8 @@ def plot_maps(df,mode):
 
 def get_graph(mode,key,continent):
     df = get_df(webpage_json,key,continent,mode)
-    plot_lines_covid(df,continent)
-    df_aux = add_percentage_population(df)
+    plot_lines_covid(df,mode,continent)
+    df_aux = add_percentage_population(df,mode)
     plot_maps(df_aux,mode)
         
 
