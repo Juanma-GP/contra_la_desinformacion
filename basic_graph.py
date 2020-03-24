@@ -119,6 +119,28 @@ def quantiles(df):
     df["Modified"] = scaler.fit_transform(df[[df.columns[-7]]])
     return df
 
+def get_first_values(records):
+    return [round(float(record),3) for record in list(records) \
+                                    if (float(record)>0)]
+
+def based_on_first_positive_case(df):
+    countries = {}
+    for i in range(df.shape[0]):
+        country = df.iloc[i].country
+        countries[country]=get_first_values(df.iloc[i][datecolumns].values)
+    return countries
+
+def dict_based_on_first_positive_case(cases):
+    dict_fpc = {}
+    for key in cases:
+        values = based_on_first_positive_case(cases[key])
+        df = pd.DataFrame.from_dict(values,orient="index")
+        df_aux = cases[key].loc[:,["country","continent","country_code_3","Latest_pop"]]\
+                           .set_index("country") 
+        dict_fpc[key] = df.merge(df_aux, left_index=True, 
+                                         right_index=True)
+    return dict_fpc
+
 def plot_lines_covid(df_abs,df_rel,mode,continent):
     
     fig = go.Figure()
@@ -129,7 +151,7 @@ def plot_lines_covid(df_abs,df_rel,mode,continent):
     if mode=='Relative': df = df_rel
     else: df = df_abs
     # -------------------------------------------------------------------------------------
-    datecolumns = df_abs.columns[:-7]
+    datecolumns = df.columns[:-7]
     
     # -------------------------------------------------------------------------------------
     for country in df.country:
@@ -149,6 +171,18 @@ def plot_lines_covid(df_abs,df_rel,mode,continent):
                                 )
                      )
     # -------------------------------------------------------------------------------------
+    fig.show()
+
+def plot_lines_covid_fpc(df,continent):
+    fig = go.Figure()
+    columns = [col for col in df.columns if col not in ['country','continent',"country_code_3",'Latest_pop']]
+    for country in df.index:
+        fig.add_trace(go.Scatter(x=df.columns,
+                                 y=df.loc[df.index==country,columns].values[0],
+                                 mode='lines',
+                                 name=df.loc[df.index==country,["country_code_3"]].values[0][0]))
+    if continent != 'All': fig.update_layout(showlegend=True)
+    else: fig.update_layout(showlegend=False)
     fig.show()
 
 def plot_maps(df,mode):
@@ -177,19 +211,33 @@ def plot_maps(df,mode):
     fig.update_layout(title_x=0.5)
     fig.show()
 
+def get_continent(df,continent):
+    return df.loc[df.continent==continent]
+
 def get_graph(mode,key,continent):
-    df_absolute = absolute[key]
-    df_relative = relative[key]
+    df_abs = absolute[key]
+    df_rel = relative[key]
+    df_abs_fpc = absolute_fpc[key]
+    df_rel_fpc = relative_fpc[key]
+
     if continent != 'All':
-        df_absolute = df_absolute.loc[df_absolute.continent==continent]
-        df_relative = df_relative.loc[df_relative.continent==continent]
+        df_abs = get_continent(df_abs,continent)
+        df_rel = get_continent(df_rel,continent)
+        if mode=="Absolute": 
+            df_fpc = get_continent(df_abs_fpc,continent)
+        else: 
+            df_fpc = get_continent(df_rel_fpc,continent)
+    else:
+        if mode=="Absolute": df_fpc = df_abs_fpc
+        else: df_fpc = df_rel_fpc
     
-    if mode=="Absolute": df = df_absolute
-    else: df = df_relative
+    if mode=="Absolute": df = df_abs
+    else: df = df_rel
     
     df = df.loc[:,df.columns[-8:]]
     
-    plot_lines_covid(df_absolute,df_relative,mode,continent)
+    plot_lines_covid(df_abs,df_rel,mode,continent)
+    plot_lines_covid_fpc(df_fpc,continent)
     plot_maps(df,mode)
 
 
@@ -201,6 +249,9 @@ for key in ['confirmed','deaths','recovered']:
     absolute[key]=quantiles(df)
     relative[key]=quantiles(df_relative)
 #     print("key",key,"ready")
+
+absolute_fpc = dict_based_on_first_positive_case(absolute)
+relative_fpc = dict_based_on_first_positive_case(relative)
 
 interact(get_graph,
          mode= Dropdown(options=["Absolute","Relative"], value="Absolute"),
