@@ -116,6 +116,7 @@ def get_relative_df(df,datecolumns):
 
 def quantiles(df):
     scaler = QuantileTransformer(random_state=0)
+    #display(df.head())
     df["Modified"] = scaler.fit_transform(df[[df.columns[-7]]])
     return df
 
@@ -244,7 +245,8 @@ def get_graph(mode,key,continent):
 # csv obtenido de Kaggle https://www.kaggle.com/statchaitya/country-to-continent/data#
 
 absolute,relative = {},{}
-for key in ['confirmed','deaths','recovered']:
+#for key in ['confirmed','deaths','recovered']:
+for key in ['confirmed','deaths']:
     df,df_relative,datecolumns = get_relative_df(*get_basic_df(key))
     absolute[key]=quantiles(df)
     relative[key]=quantiles(df_relative)
