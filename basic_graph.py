@@ -5,7 +5,7 @@ import os,requests, json
 from datetime import datetime
 from sklearn.preprocessing import QuantileTransformer
 
-from ipywidgets import interact,Dropdown
+from ipywidgets import interact,Dropdown,Select
 from plotly import graph_objects as go, express as px
 from sklearn.preprocessing import QuantileTransformer
 
@@ -141,7 +141,26 @@ def dict_based_on_first_100_positive_case(cases):
                                          right_index=True)
     return dict_fpc
 
-def plot_lines_covid(df_abs,df_rel,mode,continent):
+def grow_each_day(df):
+    df_aux = df
+    for country in df.country:
+        values = df_aux.loc[df_aux.country==country,datecolumns].values[0]
+        new_values = [values[0]]
+        new_percent = ['100 %']
+        for i in range(1,len(values)):
+            new_cases = values[i]-values[i-1]
+            new_values.append(new_cases)
+        df_aux.loc[df_aux.country==country,datecolumns] = new_values
+    return df_aux
+
+def grow_dict(dfs):
+    new_dict = {}
+    for key in dfs.keys():
+        new_dict[key] = grow_each_day(dfs[key])
+    return new_dict
+
+
+def plot_lines1_covid(df_abs,df_rel,mode,continent,country=None):
     
     fig = go.Figure()
     # -------------------------------------------------------------------------------------
@@ -173,11 +192,14 @@ def plot_lines_covid(df_abs,df_rel,mode,continent):
     # -------------------------------------------------------------------------------------
     fig.show()
 
+
+
 def plot_lines_covid_fpc(df,continent):
     fig = go.Figure()
     
     df_aux  = df.dropna(axis=1,how='all')
-    columns = [col for col in df_aux.columns if col not in ['country','continent',"country_code_3",'Latest_pop']]
+    columns = [col for col in df_aux.columns \
+               if col not in ['country','continent',"country_code_3",'Latest_pop']]
     for country in df_aux.index:
         fig.add_trace(go.Scatter(x=df_aux.columns,
                                  y=df_aux.loc[df_aux.index==country,columns].values[0],
@@ -221,11 +243,19 @@ def plot_maps(df,mode):
 def get_continent(df,continent):
     return df.loc[df.continent==continent]
 
+def list_of_percentajes(values):
+    values_aux = ['100%']
+    for i in range(1,len(values)):
+        if values[i-1]!=0: values_aux.append(str(round((values[i]-values[i-1])*100/values[i-1],2))+' %')
+        else: values_aux.append('100 %')
+    return values_aux
+
 def get_graph(mode,key,continent):
     df_abs = absolute[key]
     df_rel = relative[key]
     df_abs_fpc = absolute_fpc[key]
     df_rel_fpc = relative_fpc[key]
+    
 
     if continent != 'All':
         df_abs = get_continent(df_abs,continent)
@@ -241,9 +271,34 @@ def get_graph(mode,key,continent):
     if mode=="Absolute": df = df_abs
     else: df = df_rel
     
+    
     df = df.loc[:,df.columns[-8:]]
     
-    plot_lines_covid(df_abs,df_rel,mode,continent)
+    plot_lines1_covid(df_abs,df_rel,mode,continent)
+    
+    df_per_day = grow_each_day(df_abs.copy())
+    def plot_lines2_covid(country=''):
+        df = df_per_day
+        if country != '':
+            df = df.query("country == '"+country+"'")
+        fig = go.Figure()
+
+        for country in df.country:
+            values = df.loc[df.country==country,datecolumns].values[0]
+            fig.add_trace(go.Scatter(x=datecolumns,
+                                     y=values,
+                                     mode='lines',
+                                     name=df.loc[df.country==country,['country_code_3']].values[0][0],
+                                     hovertemplate='<b>Country:</b> '+country+'<br>'+
+                                                   '<b>Date:</b> %{x}<br>'+
+                                                   '<b>Cases:</b> %{y}<br>'+
+                                                   '<b>Percent:</b> %{text}',
+                                     text=list_of_percentajes(values)
+                                    ))
+        fig.update_layout(title={'text':"Cases per day and country",'y':0.9,'x':0.5,'xanchor':'center'},
+                          showlegend=False)
+        fig.show()
+    interact(plot_lines2_covid, country=Dropdown(options=list(df_per_day.country)+[''],value=''))
     plot_lines_covid_fpc(df_fpc,continent)
     plot_maps(df,mode)
 
