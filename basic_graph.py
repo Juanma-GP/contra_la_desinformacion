@@ -115,25 +115,25 @@ def get_relative_df(df,datecolumns):
     return df,df_aux,datecolumns
 
 def quantiles(df):
-    scaler = QuantileTransformer(random_state=0)
+    scaler = QuantileTransformer(random_state=0,n_quantiles = df.shape[0])
     df["Modified"] = scaler.fit_transform(df[[df.columns[-7]]])
     return df
 
-def get_first_values(records):
+def get_first_100_cases(records):
     return [round(float(record),3) for record in list(records) \
-                                    if (float(record)>0)]
+                                    if (float(record)>100)]
 
-def based_on_first_positive_case(df):
+def based_on_first_100_positive_case(df):
     countries = {}
     for i in range(df.shape[0]):
         country = df.iloc[i].country
-        countries[country]=get_first_values(df.iloc[i][datecolumns].values)
+        countries[country]=get_first_100_cases(df.iloc[i][datecolumns].values)
     return countries
 
-def dict_based_on_first_positive_case(cases):
+def dict_based_on_first_100_positive_case(cases):
     dict_fpc = {}
     for key in cases:
-        values = based_on_first_positive_case(cases[key])
+        values = based_on_first_100_positive_case(cases[key])
         df = pd.DataFrame.from_dict(values,orient="index")
         df_aux = cases[key].loc[:,["country","continent","country_code_3","Latest_pop"]]\
                            .set_index("country") 
@@ -175,14 +175,21 @@ def plot_lines_covid(df_abs,df_rel,mode,continent):
 
 def plot_lines_covid_fpc(df,continent):
     fig = go.Figure()
-    columns = [col for col in df.columns if col not in ['country','continent',"country_code_3",'Latest_pop']]
-    for country in df.index:
-        fig.add_trace(go.Scatter(x=df.columns,
-                                 y=df.loc[df.index==country,columns].values[0],
+    
+    df_aux  = df.dropna(axis=1,how='all')
+    columns = [col for col in df_aux.columns if col not in ['country','continent',"country_code_3",'Latest_pop']]
+    for country in df_aux.index:
+        fig.add_trace(go.Scatter(x=df_aux.columns,
+                                 y=df_aux.loc[df_aux.index==country,columns].values[0],
                                  mode='lines',
-                                 name=df.loc[df.index==country,["country_code_3"]].values[0][0]))
-    if continent != 'All': fig.update_layout(showlegend=True)
-    else: fig.update_layout(showlegend=False)
+                                 name=df_aux.loc[df_aux.index==country,["country_code_3"]].values[0][0]))
+    if continent != 'All': legend=True
+    else: legend=False
+    fig.update_layout(title={'text':"Since each country have 100 cases",
+                             'y':0.9,
+                             'x':0.5,
+                             'xanchor':'center'},
+                      showlegend=legend)
     fig.show()
 
 def plot_maps(df,mode):
@@ -250,8 +257,8 @@ for key in ['confirmed','deaths','recovered']:
     relative[key]=quantiles(df_relative)
 #     print("key",key,"ready")
 
-absolute_fpc = dict_based_on_first_positive_case(absolute)
-relative_fpc = dict_based_on_first_positive_case(relative)
+absolute_fpc = dict_based_on_first_100_positive_case(absolute)
+relative_fpc = dict_based_on_first_100_positive_case(relative)
 
 interact(get_graph,
          mode= Dropdown(options=["Absolute","Relative"], value="Absolute"),
